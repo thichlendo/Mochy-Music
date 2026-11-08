@@ -188,7 +188,7 @@ internal fun rememberAshTransition(
     return ash
 }
 
-private private fun ashSmooth(x: Float): Float {
+private fun ashSmooth(x: Float): Float {
     val t = x.coerceIn(0f, 1f)
     return t * t * (3f - 2f * t)
 }
