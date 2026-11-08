@@ -4,6 +4,8 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
 
     repositories {
+        maven { url = java.net.URI.create("https://cache-redirector.jetbrains.com/repo1.maven.org/maven2") }
+
         google()
         mavenCentral()
         maven { setUrl("https://jitpack.io") }

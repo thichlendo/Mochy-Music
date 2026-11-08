@@ -7,6 +7,8 @@ plugins {
 
 buildscript {
     repositories {
+        maven { url = java.net.URI.create("https://cache-redirector.jetbrains.com/repo1.maven.org/maven2") }
+
         google()
         mavenCentral()
         maven { setUrl("https://jitpack.io") }
