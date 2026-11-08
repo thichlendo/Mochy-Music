@@ -44,7 +44,7 @@ import kotlin.random.Random
 
 /** how small the covers get at the edge of the hand-over */
 private const val AshScale = 0.85f
-private const val EmberCount = 200
+private const val EmberCount = 80
 
 /**
  * State of the Poster's "Ash Embers" hand-over: for [durationMs] after a song change the old cover
