@@ -359,6 +359,8 @@ class MusicService :
     private var crossfadeGapless = true
     private var crossmixMode = CrossmixMode.OFF
     private var crossfadeTriggerJob: Job? = null
+    // Ash Embers is on: a manual Next hands over for the same transitionMs the cover's animation runs
+    private var posterTransitionActive = false
 
     private val secondaryPlayerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
@@ -639,6 +641,7 @@ class MusicService :
         val durationSeconds: Float,
         val disableForGaplessAlbums: Boolean,
         val djFilter: Boolean = false,
+        val ash: Boolean = false,
     )
 
     private lateinit var mediaSession: MediaLibrarySession
@@ -1148,7 +1151,7 @@ class MusicService :
                 val seconds = (prefs[com.mochyy.mochymusic.constants.PosterTransitionSecondsKey]
                     ?: com.mochyy.mochymusic.constants.PosterTransitionDefaultSeconds)
                     .coerceIn(1, 10).toFloat()
-                CrossfadeConfig(CrossmixMode.MANUAL_CROSSFADE, true, seconds, false, prefs[com.mochyy.mochymusic.constants.PosterDjFilterKey] ?: false)
+                CrossfadeConfig(CrossmixMode.MANUAL_CROSSFADE, true, seconds, false, prefs[com.mochyy.mochymusic.constants.PosterDjFilterKey] ?: false, ash = true)
             } else {
                 CrossfadeConfig(mode, enabled, duration, prefs[CrossfadeGaplessKey] ?: true, prefs[com.mochyy.mochymusic.constants.PosterDjFilterKey] ?: false)
             }
@@ -1160,6 +1163,7 @@ class MusicService :
                 crossfadeDuration = config.durationSeconds * 1000f
                 crossfadeGapless = config.disableForGaplessAlbums
                 djFilterEnabled = config.djFilter
+                posterTransitionActive = config.ash
             }
 
         dataStore.data
@@ -4453,7 +4457,8 @@ class MusicService :
         }
         if (target == C.INDEX_UNSET) return false
         crossfadeTriggerJob?.cancel()
-        crossfadeTo(target, SkipBlendMs)
+        // dynamic: follows the user's chosen transition length when Ash Embers drives the cover
+        crossfadeTo(target, if (posterTransitionActive) crossfadeDuration.toLong() else SkipBlendMs)
         return true
     }
 
@@ -4606,8 +4611,9 @@ class MusicService :
             val outDuration = outgoing?.duration ?: C.TIME_UNSET
             val clockFromOld = naturalEnd && outDuration > durationMs
             fun oldEnded(): Boolean = outgoing == null || outgoing.playbackState == Player.STATE_ENDED ||
-                (outDuration > 0 && outgoing.currentPosition >= outDuration - 30)
-            while (isActive && (heardMs < durationMs || (clockFromOld && !oldEnded() && heardMs < durationMs + 3000))) {
+                (outDuration > 0 && outgoing.currentPosition >= outDuration - CrossfadeEndToleranceMs)
+            // the grace for a late clock scales with the transition itself, no fixed seconds
+            while (isActive && (heardMs < durationMs || (clockFromOld && !oldEnded() && heardMs < durationMs * 2))) {
                 delay(CrossfadeFrameMs)
                 val now = android.os.SystemClock.elapsedRealtime()
                 // a pause mid-crossfade holds both songs where they are
@@ -4617,8 +4623,9 @@ class MusicService :
                     ((outgoing!!.currentPosition - (outDuration - durationMs)).toFloat() / durationMs).coerceIn(0f, 1f)
                 } else (heardMs.toFloat() / durationMs).coerceIn(0f, 1f)
                 try {
-                    player.volume = targetVolume() * kotlin.math.sin(progress * Math.PI / 2.0).toFloat()
-                    fadingPlayer?.volume = startVolume * kotlin.math.cos(progress * Math.PI / 2.0).toFloat()
+                    // steady linear ramps over transitionMs: B 0 -> 1, A 1 -> 0
+                    player.volume = targetVolume() * progress
+                    fadingPlayer?.volume = startVolume * (1f - progress)
                     if (djFilterEnabled) {
                         fadingPlayer?.let { playerDjFilters[it] }?.setSweep(com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor.Mode.LOW_PASS, progress)
                         playerDjFilters[player]?.setSweep(com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor.Mode.HIGH_PASS, progress)
@@ -4632,11 +4639,9 @@ class MusicService :
             if (naturalEnd && outDuration > 0) {
                 val out = fadingPlayer
                 while (isActive && out != null && out.playbackState != Player.STATE_ENDED &&
-                    out.currentPosition < outDuration - 30 && player.isPlaying) {
-                    try {
-                        val left = (outDuration - out.currentPosition).coerceAtLeast(0L)
-                        out.volume = if (left <= 0L) 0f else out.volume.coerceAtMost(startVolume * left / 1000f)
-                    } catch (e: Exception) { break }
+                    out.currentPosition < outDuration - CrossfadeEndToleranceMs && player.isPlaying) {
+                    // the ramp is over: A stays silent while its clock runs out to STATE_ENDED
+                    try { out.volume = 0f } catch (e: Exception) { break }
                     delay(CrossfadeFrameMs)
                 }
             }
@@ -5142,6 +5147,8 @@ class MusicService :
         // back after this far into a song starts it over, like the previous button always did
         const val BlendRestartAfterMs = 3_000L
         const val CrossfadeFrameMs = 16L
+        // clock slack when deciding a player has reached its last millisecond
+        const val CrossfadeEndToleranceMs = 30L
         // about the first 20 to 30 seconds of a song, enough for a skip to start straight from the cache
         const val PrefetchBytes = 512L * 1024L
         const val PrefetchDelayMs = 4_000L
