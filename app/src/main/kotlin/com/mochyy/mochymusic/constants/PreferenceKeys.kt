@@ -725,6 +725,19 @@ val IpodShadowKey = booleanPreferencesKey("ipodShadow")
 /** the Poster's bars round its cover, moving with the music; off until turned on in its editor */
 val PosterVisualizerKey = booleanPreferencesKey("posterVisualizer")
 
+/** how the Poster hands one song over to the next */
+enum class PosterTransition { CROSSFADE, ASH_EMBERS }
+
+val PosterTransitionKey = stringPreferencesKey("posterTransition")
+
+/** how long the Poster's hand-over lasts, in seconds: 1, 3, 5 or 10 */
+val PosterTransitionSecondsKey = intPreferencesKey("posterTransitionSeconds")
+val PosterTransitionChoices = listOf(1, 3, 5, 10)
+const val PosterTransitionDefaultSeconds = 3
+
+/** the hand-over also sweeps the old song down through a low-pass and the new one up out of a high-pass */
+val PosterDjFilterKey = booleanPreferencesKey("posterDjFilter")
+
 // the bedside's clock faces, swiped through sideways on the clock or picked in its sheet
 enum class BedsideClockFace { BIG, STACKED, ANALOG, COVER }
 

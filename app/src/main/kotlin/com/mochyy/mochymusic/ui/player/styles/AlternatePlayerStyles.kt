@@ -265,6 +265,23 @@ private fun PosterPlayerStyle(actions: StyleActions, modifier: Modifier, preview
     )
     val (visualizer) = com.mochyy.mochymusic.utils.rememberPreference(com.mochyy.mochymusic.constants.PosterVisualizerKey, defaultValue = false)
     val ring = rememberCoverRingState()
+    // the song change: the plain crossfade, or the cover turning to ash
+    val (transitionName) = com.mochyy.mochymusic.utils.rememberPreference(
+        com.mochyy.mochymusic.constants.PosterTransitionKey,
+        defaultValue = com.mochyy.mochymusic.constants.PosterTransition.CROSSFADE.name,
+    )
+    val (transitionSeconds) = com.mochyy.mochymusic.utils.rememberPreference(
+        com.mochyy.mochymusic.constants.PosterTransitionSecondsKey,
+        defaultValue = com.mochyy.mochymusic.constants.PosterTransitionDefaultSeconds,
+    )
+    val ash = rememberAshTransition(
+        enabled = !preview && transitionName == com.mochyy.mochymusic.constants.PosterTransition.ASH_EMBERS.name,
+        durationMs = transitionSeconds.coerceIn(1, 10) * 1000,
+        track = track,
+        lines = lyrics.lines,
+        lyricsMediaId = lyrics.mediaId,
+        position = position,
+    )
     // The live player, not a selector card, whether open or not. Tied to the player being open, the
     // ring jumped to a fixed spot and lost its bars the moment a close began.
     val live = !preview
@@ -315,6 +332,7 @@ private fun PosterPlayerStyle(actions: StyleActions, modifier: Modifier, preview
                 // circle from the top-left: through the right edge at 0.8 W, the left edge at 1.19 W
                 CircleCover(
                     carousel = carousel,
+                    ash = ash,
                     url = track.artwork,
                     center = Offset(0.13f, 0.06f),
                     radius = 1.14f,
@@ -333,7 +351,16 @@ private fun PosterPlayerStyle(actions: StyleActions, modifier: Modifier, preview
                             bottom = bottom,
                         ),
                 ) {
-                    StyleSongs(carousel, track, lyrics) { song, slotModifier ->
+                    if (ash.enabled) {
+                        AshWords(ash, track, lyrics.lines, position) { shownTrack, shownLines, shownPosition ->
+                            Column(Modifier.fillMaxSize()) {
+                                PosterText(
+                                    shownLines, shownPosition, shownTrack, tones, r, baseSize = r.sp(0.12f, 34f, 56f), gap = 12.dp,
+                                    push = { Offset(0f, ring.expand.value * with(density) { RingPush.toPx() }) },
+                                )
+                            }
+                        }
+                    } else StyleSongs(carousel, track, lyrics) { song, slotModifier ->
                         Column(Modifier.fillMaxSize().then(slotModifier)) {
                             PosterText(
                                 song.lines, position, song.track, tones, r, baseSize = r.sp(0.12f, 34f, 56f), gap = 12.dp,
@@ -370,6 +397,7 @@ private fun PosterPlayerStyle(actions: StyleActions, modifier: Modifier, preview
                 // circle from the left edge, the words to its right
                 CircleCover(
                     carousel = carousel,
+                    ash = ash,
                     url = track.artwork,
                     center = Offset(0.04f, 0.30f),
                     radius = 0.953f,
@@ -386,7 +414,16 @@ private fun PosterPlayerStyle(actions: StyleActions, modifier: Modifier, preview
                             bottom = 20.dp,
                         ),
                 ) {
-                    StyleSongs(carousel, track, lyrics) { song, slotModifier ->
+                    if (ash.enabled) {
+                        AshWords(ash, track, lyrics.lines, position) { shownTrack, shownLines, shownPosition ->
+                            Column(Modifier.fillMaxHeight()) {
+                                PosterText(
+                                    shownLines, shownPosition, shownTrack, tones, r, baseSize = r.sp(0.095f, 28f, 46f), gap = 8.dp,
+                                    push = { Offset(ring.expand.value * with(density) { RingPush.toPx() }, 0f) },
+                                )
+                            }
+                        }
+                    } else StyleSongs(carousel, track, lyrics) { song, slotModifier ->
                         Column(Modifier.fillMaxHeight().then(slotModifier)) {
                             PosterText(
                                 song.lines, position, song.track, tones, r, baseSize = r.sp(0.095f, 28f, 46f), gap = 8.dp,
@@ -620,6 +657,7 @@ internal fun rememberStyleLyrics(readings: Boolean): StyleLyrics {
 @Composable
 private fun CircleCover(
     carousel: com.mochyy.mochymusic.ui.player.SongCarousel?,
+    ash: AshTransition? = null,
     url: String?,
     center: Offset,
     radius: Float,
@@ -667,7 +705,9 @@ private fun CircleCover(
                 },
         ) {
             // the songs' covers slide past under the circle, the next one coming in as this one goes
-            com.mochyy.mochymusic.ui.player.CarouselPictures(
+            if (ash != null && ash.showing) {
+                AshCover(ash, url, Modifier.fillMaxSize())
+            } else com.mochyy.mochymusic.ui.player.CarouselPictures(
                 carousel = carousel,
                 fallbackUrl = url,
                 modifier = Modifier.fillMaxSize(),

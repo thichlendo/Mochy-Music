@@ -638,6 +638,7 @@ class MusicService :
         val enabled: Boolean,
         val durationSeconds: Float,
         val disableForGaplessAlbums: Boolean,
+        val djFilter: Boolean = false,
     )
 
     private lateinit var mediaSession: MediaLibrarySession
@@ -653,6 +654,9 @@ class MusicService :
     // each player's equaliser, so it's unregistered when that player goes (crossfades make many)
     private val playerEqProcessors = HashMap<Player, CustomEqualizerAudioProcessor>()
     private val playerCrossmixProcessors = HashMap<Player, CrossmixTransitionAudioProcessor>()
+    private val playerDjFilters = HashMap<Player, com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor>()
+    /** the Poster's DJ Automix filter: sweeps both songs through a filter while they cross */
+    @Volatile private var djFilterEnabled = false
     // each player's ear for the visualizer; weak, so a player let go takes its own with it
     private val playerSpectra = java.util.WeakHashMap<Player, com.mochyy.mochymusic.playback.audio.AudioSpectrum>()
 
@@ -1137,7 +1141,17 @@ class MusicService :
                 CrossmixMode.CROSSMIX -> (prefs[CrossfadeDurationKey] ?: 12f).coerceIn(8f, 20f)
                 CrossmixMode.OFF -> prefs[CrossfadeDurationKey] ?: 5f
             }
-            CrossfadeConfig(mode, enabled, duration, prefs[CrossfadeGaplessKey] ?: true)
+            val ash = prefs[com.mochyy.mochymusic.constants.PosterTransitionKey] ==
+                com.mochyy.mochymusic.constants.PosterTransition.ASH_EMBERS.name
+            if (ash) {
+                // Ash Embers hands every song over with the Poster's chosen length, the cover's particles running the same time
+                val seconds = (prefs[com.mochyy.mochymusic.constants.PosterTransitionSecondsKey]
+                    ?: com.mochyy.mochymusic.constants.PosterTransitionDefaultSeconds)
+                    .coerceIn(1, 10).toFloat()
+                CrossfadeConfig(CrossmixMode.MANUAL_CROSSFADE, true, seconds, false, prefs[com.mochyy.mochymusic.constants.PosterDjFilterKey] ?: false)
+            } else {
+                CrossfadeConfig(mode, enabled, duration, prefs[CrossfadeGaplessKey] ?: true, prefs[com.mochyy.mochymusic.constants.PosterDjFilterKey] ?: false)
+            }
         }
             .distinctUntilChanged()
             .collect(scope) { config ->
@@ -1145,6 +1159,7 @@ class MusicService :
                 crossfadeEnabled = config.enabled
                 crossfadeDuration = config.durationSeconds * 1000f
                 crossfadeGapless = config.disableForGaplessAlbums
+                djFilterEnabled = config.djFilter
             }
 
         dataStore.data
@@ -1269,6 +1284,7 @@ class MusicService :
             ReverbAudioProcessor(audioFx),
             LoudnessAudioProcessor(audioFx),
         )
+        val djFilter = com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor()
 
         val silenceProcessor = SilenceDetectorAudioProcessor { handleLongSilenceDetected() }
         val crossmixProcessor = CrossmixTransitionAudioProcessor()
@@ -1334,7 +1350,7 @@ class MusicService :
 
         val player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(createMediaSourceFactory())
-            .setRenderersFactory(createRenderersFactory(eqProcessor, fxProcessors, silenceProcessor, hapticAudioProcessor, crossmixProcessor, replayGain, spectrum, inspector))
+            .setRenderersFactory(createRenderersFactory(eqProcessor, fxProcessors + djFilter, silenceProcessor, hapticAudioProcessor, crossmixProcessor, replayGain, spectrum, inspector))
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .setAudioAttributes(
@@ -1372,6 +1388,7 @@ class MusicService :
         playerReplayGain[player] = replayGain
         playerSilenceProcessors[player] = silenceProcessor
         playerCrossmixProcessors[player] = crossmixProcessor
+        playerDjFilters[player] = djFilter
         playerSpectra[player] = spectrum
         playerEqProcessors[player] = eqProcessor
         playerInspectors[player] = inspector
@@ -4595,6 +4612,11 @@ class MusicService :
                     // one's, a fade begun while muted or ducked ended at 0 or a fifth, and stayed
                     player.volume = targetVolume() * kotlin.math.sin(progress * Math.PI / 2.0).toFloat()
                     fadingPlayer?.volume = startVolume * kotlin.math.cos(progress * Math.PI / 2.0).toFloat()
+                    if (djFilterEnabled) {
+                        // old song closes into a low-pass, the new one opens up from a high-pass
+                        fadingPlayer?.let { playerDjFilters[it] }?.setSweep(com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor.Mode.LOW_PASS, progress)
+                        playerDjFilters[player]?.setSweep(com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor.Mode.HIGH_PASS, progress)
+                    }
                 } catch (e: Exception) {
                     break
                 }
@@ -4614,6 +4636,8 @@ class MusicService :
         fadingPlayer?.release()
         fadingPlayer?.let(playerCrossmixProcessors::remove)
         fadingPlayer?.let(playerSilenceProcessors::remove)
+        fadingPlayer?.let { playerDjFilters.remove(it)?.off() }
+        playerDjFilters[player]?.off()
         fadingPlayer?.let(::unregisterEqualizer)
         fadingPlayer = null
         fadingLoudnessEnhancer?.runCatching { release() }

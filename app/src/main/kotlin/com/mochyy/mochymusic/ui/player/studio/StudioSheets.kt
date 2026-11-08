@@ -263,10 +263,46 @@ private val PosterVisualizerOption = CoverOption.Switch(
 
 @Composable
 private fun ColumnScope.PosterOptions() {
+    var transition by com.mochyy.mochymusic.utils.rememberEnumPreference(
+        com.mochyy.mochymusic.constants.PosterTransitionKey,
+        com.mochyy.mochymusic.constants.PosterTransition.CROSSFADE,
+    )
+    var seconds by com.mochyy.mochymusic.utils.rememberPreference(
+        com.mochyy.mochymusic.constants.PosterTransitionSecondsKey,
+        defaultValue = com.mochyy.mochymusic.constants.PosterTransitionDefaultSeconds,
+    )
     OptionSheet(title = "The poster") {
         SwitchRow(PosterVisualizerOption)
+        OptionRow(
+            selected = transition == com.mochyy.mochymusic.constants.PosterTransition.CROSSFADE,
+            onClick = { transition = com.mochyy.mochymusic.constants.PosterTransition.CROSSFADE },
+            caption = "Song change",
+            compact = true,
+        ) { TwoLines("Default (Crossfade)", "the songs blend into each other") }
+        OptionRow(
+            selected = transition == com.mochyy.mochymusic.constants.PosterTransition.ASH_EMBERS,
+            onClick = { transition = com.mochyy.mochymusic.constants.PosterTransition.ASH_EMBERS },
+            compact = true,
+        ) { TwoLines("Ash Embers", "the old cover turns to ash and drifts into the new one") }
+        com.mochyy.mochymusic.constants.PosterTransitionChoices.forEachIndexed { index, option ->
+            OptionRow(
+                selected = seconds == option,
+                onClick = { seconds = option },
+                caption = if (index == 0) "Transition time" else null,
+                compact = true,
+            ) { TwoLines("${option}s", "the hand-over lasts $option seconds") }
+        }
+        SwitchRow(PosterDjFilterOption)
     }
 }
+
+private val PosterDjFilterOption = CoverOption.Switch(
+    title = "DJ Automix Filter",
+    description = "the old song sweeps into a low-pass, the new one opens up from a high-pass",
+    icon = R.drawable.graphic_eq,
+    key = com.mochyy.mochymusic.constants.PosterDjFilterKey,
+    default = false,
+)
 
 /** "What to change with": the title, what it's for, the options, and Done */
 @Composable
