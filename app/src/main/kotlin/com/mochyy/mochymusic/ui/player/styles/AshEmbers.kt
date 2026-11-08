@@ -188,7 +188,7 @@ internal fun rememberAshTransition(
     return ash
 }
 
-private fun smooth(x: Float): Float {
+private private fun ashSmooth(x: Float): Float {
     val t = x.coerceIn(0f, 1f)
     return t * t * (3f - 2f * t)
 }
@@ -207,10 +207,10 @@ internal fun AshCover(ash: AshTransition, newUrl: String?, modifier: Modifier = 
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize().graphicsLayer {
                 val v = progress.value
-                val s = 1f - (1f - AshScale) * smooth(v / 0.25f)
+                val s = 1f - (1f - AshScale) * ashSmooth(v / 0.25f)
                 scaleX = s
                 scaleY = s
-                alpha = 1f - smooth((v - 0.15f) / 0.55f)
+                alpha = 1f - ashSmooth((v - 0.15f) / 0.55f)
             },
         )
         Canvas(Modifier.fillMaxSize()) {
