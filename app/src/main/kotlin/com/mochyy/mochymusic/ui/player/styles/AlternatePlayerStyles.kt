@@ -285,6 +285,8 @@ private fun PosterPlayerStyle(actions: StyleActions, modifier: Modifier, preview
     // The live player, not a selector card, whether open or not. Tied to the player being open, the
     // ring jumped to a fixed spot and lost its bars the moment a close began.
     val live = !preview
+    // Apple Music's animated artwork for the playing song, when it has one
+    val canvasUrl = rememberPosterCanvasUrl(track, enabled = !preview)
     val density = LocalDensity.current
     // the pills' column, and the room the words keep from it
     val pillsWidth = com.mochyy.mochymusic.ui.player.TurntablePillWidth
@@ -334,6 +336,7 @@ private fun PosterPlayerStyle(actions: StyleActions, modifier: Modifier, preview
                     carousel = carousel,
                     ash = ash,
                     url = track.artwork,
+                    canvasUrl = canvasUrl,
                     center = Offset(0.13f, 0.06f),
                     radius = 1.14f,
                     unit = w,
@@ -399,6 +402,7 @@ private fun PosterPlayerStyle(actions: StyleActions, modifier: Modifier, preview
                     carousel = carousel,
                     ash = ash,
                     url = track.artwork,
+                    canvasUrl = canvasUrl,
                     center = Offset(0.04f, 0.30f),
                     radius = 0.953f,
                     unit = h,
@@ -659,6 +663,7 @@ private fun CircleCover(
     carousel: com.mochyy.mochymusic.ui.player.SongCarousel?,
     ash: AshTransition? = null,
     url: String?,
+    canvasUrl: String? = null,
     center: Offset,
     radius: Float,
     unit: Dp,
@@ -706,7 +711,7 @@ private fun CircleCover(
         ) {
             // the songs' covers slide past under the circle, the next one coming in as this one goes
             if (ash != null && ash.showing) {
-                AshCover(ash, url, Modifier.fillMaxSize())
+                AshCover(ash, url, Modifier.fillMaxSize(), newVideo = canvasUrl)
             } else com.mochyy.mochymusic.ui.player.CarouselPictures(
                 carousel = carousel,
                 fallbackUrl = url,
@@ -720,6 +725,10 @@ private fun CircleCover(
                         modifier = pictureModifier,
                     )
                 }
+            }
+            // the animated artwork over the still, bent to the oval; clear until it has a frame
+            if (canvasUrl != null && (ash == null || !ash.showing)) {
+                PosterCanvasVideo(canvasUrl, Modifier.fillMaxSize())
             }
         }
     }

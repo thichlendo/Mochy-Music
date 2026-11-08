@@ -61,6 +61,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-universal-gms-debug
-          path: app/build/outputs/apk/universalGms/debug/*.apk
+          path: app/build/outputs/apk/**/*.apk
           # a debug apk is only for trying the build, after a week it's just eating actions storage
           retention-days: 7

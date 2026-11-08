@@ -59,6 +59,6 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: app-universal-debug-pr-${{ github.event.number }}
-          path: app/build/outputs/apk/universalFoss/debug/*.apk
+          path: app/build/outputs/apk/**/*.apk
           # a pr's apk is for trying it before merging, after a week it's just eating actions storage
           retention-days: 7

@@ -4437,7 +4437,7 @@ class MusicService :
         if (isCrossfading || crossmixDirector.isTransitioning) return
         val targetIndex = player.nextMediaItemIndex
         if (targetIndex == C.INDEX_UNSET) return
-        crossfadeTo(targetIndex, crossfadeDuration.toLong())
+        crossfadeTo(targetIndex, crossfadeDuration.toLong(), naturalEnd = true)
     }
 
     // "blend skips": the song asked for starts on a second player and the two cross over, a crossfade on the press
@@ -4505,7 +4505,7 @@ class MusicService :
     }
 
     // starts targetIndex on a second player and crosses the two over in durationMs; the end-of-song crossfade and blended skips both come through here
-    private fun crossfadeTo(targetIndex: Int, durationMs: Long) {
+    private fun crossfadeTo(targetIndex: Int, durationMs: Long, naturalEnd: Boolean = false) {
         val savedRepeatMode = runBlocking { dataStore.get(RepeatModeKey, REPEAT_MODE_OFF) }
         val savedShuffleEnabled = runBlocking { dataStore.get(ShuffleModeKey, false) }
 
@@ -4524,7 +4524,7 @@ class MusicService :
         secPlayer.prepare()
         secPlayer.playWhenReady = true
 
-        performCrossfadeSwap(durationMs)
+        performCrossfadeSwap(durationMs, naturalEnd)
     }
 
     /**
@@ -4546,7 +4546,7 @@ class MusicService :
         to.setShuffleOrder(DefaultShuffleOrder(order.toIntArray(), System.currentTimeMillis()))
     }
 
-    private fun performCrossfadeSwap(durationMs: Long) {
+    private fun performCrossfadeSwap(durationMs: Long, naturalEnd: Boolean = false) {
         isCrossfading = true
         val nextPlayer = secondaryPlayer ?: return
         val currentPlayer = player
@@ -4600,20 +4600,26 @@ class MusicService :
             // stepped every frame by the time actually played: twenty fixed steps were heard as the volume jumping
             var heardMs = 0L
             var last = android.os.SystemClock.elapsedRealtime()
-            while (isActive && heardMs < durationMs) {
+            val outgoing = fadingPlayer
+            // an end-of-song crossfade is driven by the old song's own clock: it keeps sounding to its very last
+            // millisecond while its volume falls from full to silence over exactly the last durationMs
+            val outDuration = outgoing?.duration ?: C.TIME_UNSET
+            val clockFromOld = naturalEnd && outDuration > durationMs
+            fun oldEnded(): Boolean = outgoing == null || outgoing.playbackState == Player.STATE_ENDED ||
+                (outDuration > 0 && outgoing.currentPosition >= outDuration - 30)
+            while (isActive && (heardMs < durationMs || (clockFromOld && !oldEnded() && heardMs < durationMs + 3000))) {
                 delay(CrossfadeFrameMs)
                 val now = android.os.SystemClock.elapsedRealtime()
                 // a pause mid-crossfade holds both songs where they are
                 if (player.isPlaying) heardMs += now - last
                 last = now
-                val progress = (heardMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                val progress = if (clockFromOld) {
+                    ((outgoing!!.currentPosition - (outDuration - durationMs)).toFloat() / durationMs).coerceIn(0f, 1f)
+                } else (heardMs.toFloat() / durationMs).coerceIn(0f, 1f)
                 try {
-                    // the new song fades up to the volume it should be at now: started from the old
-                    // one's, a fade begun while muted or ducked ended at 0 or a fifth, and stayed
                     player.volume = targetVolume() * kotlin.math.sin(progress * Math.PI / 2.0).toFloat()
                     fadingPlayer?.volume = startVolume * kotlin.math.cos(progress * Math.PI / 2.0).toFloat()
                     if (djFilterEnabled) {
-                        // old song closes into a low-pass, the new one opens up from a high-pass
                         fadingPlayer?.let { playerDjFilters[it] }?.setSweep(com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor.Mode.LOW_PASS, progress)
                         playerDjFilters[player]?.setSweep(com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor.Mode.HIGH_PASS, progress)
                     }

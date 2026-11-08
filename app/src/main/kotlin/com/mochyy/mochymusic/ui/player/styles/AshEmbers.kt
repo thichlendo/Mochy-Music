@@ -14,6 +14,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,7 +45,7 @@ import kotlin.random.Random
 
 /** how small the covers get at the edge of the hand-over */
 private const val AshScale = 0.85f
-private const val EmberCount = 80
+private const val EmberCount = 70
 
 /**
  * State of the Poster's "Ash Embers" hand-over: for [durationMs] after a song change the old cover
@@ -93,10 +94,10 @@ internal class AshTransition {
 /** the embers: start and end of each one's drift across the cover, as fractions of the cover box */
 internal class Embers(val count: Int, seed: Int) {
     private val rnd = Random(seed)
-    private val sx = FloatArray(count) { 0.1f + rnd.nextFloat() * 0.8f }
+    private val sx = FloatArray(count) { 0.08f + rnd.nextFloat() * 0.3f }
     private val sy = FloatArray(count) { 0.05f + rnd.nextFloat() * 0.8f }
-    private val tx = FloatArray(count) { 0.3f + rnd.nextFloat() * 0.35f }
-    private val ty = FloatArray(count) { 0.25f + rnd.nextFloat() * 0.3f }
+    private val tx = FloatArray(count) { 0.62f + rnd.nextFloat() * 0.3f }
+    private val ty = FloatArray(count) { 0.15f + rnd.nextFloat() * 0.65f }
     private val lag = FloatArray(count) { rnd.nextFloat() * 0.35f }
     private val life = FloatArray(count) { 0.45f + rnd.nextFloat() * 0.2f }
     private val radius = FloatArray(count) { 1.2f + rnd.nextFloat() * 2.8f }
@@ -193,41 +194,70 @@ private fun ashSmooth(x: Float): Float {
     return t * t * (3f - 2f * t)
 }
 
+/** how far (as a share of the cover's width) the two covers stand off to the left and right during the hand-over */
+private const val AshSideShift = 0.14f
+
+/** the hand-over's last stretch: the new cover slides to the middle and grows back to full size */
+private const val AshSettleFrom = 0.75f
+
 /**
- * The cover as the hand-over draws it: the old one shrinking and turning to embers, the embers
- * drifting over, the new one blooming out of them to fill the oval again.
+ * The cover as the hand-over draws it: the old one shrunk to the left, turning to ash; the embers
+ * spiralling across to the right where the new one is faintly appearing; then, at the very end, the
+ * new one slides into the middle and grows to fill the oval again. [oldVideo] / [newVideo] are the
+ * songs' animated artworks (looping muted video), drawn over the still cover when there is one.
  */
 @Composable
-internal fun AshCover(ash: AshTransition, newUrl: String?, modifier: Modifier = Modifier) {
+internal fun AshCover(
+    ash: AshTransition,
+    newUrl: String?,
+    modifier: Modifier = Modifier,
+    newVideo: String? = null,
+    oldVideo: String? = ash.heldTrack?.let { PosterCanvasCache.peek(it) },
+) {
     val progress = ash.progress
-    Box(modifier) {
-        AsyncImage(
-            model = ash.heldUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().graphicsLayer {
+    BoxWithConstraints(modifier) {
+        val widthPx = with(androidx.compose.ui.platform.LocalDensity.current) { maxWidth.toPx() }
+        Box(
+            Modifier.fillMaxSize().graphicsLayer {
                 val v = progress.value
-                val s = 1f - (1f - AshScale) * ashSmooth(v / 0.25f)
+                val s = 1f - (1f - AshScale) * ashSmooth(v / 0.2f)
                 scaleX = s
                 scaleY = s
-                alpha = 1f - ashSmooth((v - 0.15f) / 0.55f)
+                translationX = -widthPx * AshSideShift * ashSmooth(v / 0.2f)
+                alpha = 1f - ashSmooth((v - 0.1f) / 0.55f)
             },
-        )
+        ) {
+            AsyncImage(
+                model = ash.heldUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (oldVideo != null) PosterCanvasVideo(oldVideo, Modifier.fillMaxSize())
+        }
         Canvas(Modifier.fillMaxSize()) {
             with(ash.embers) { draw(progress.value) }
         }
-        AsyncImage(
-            model = newUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().graphicsLayer {
-                val e = FastOutSlowInEasing.transform(((progress.value - 0.3f) / 0.7f).coerceIn(0f, 1f))
-                val s = AshScale + (1f - AshScale) * e
+        Box(
+            Modifier.fillMaxSize().graphicsLayer {
+                val v = progress.value
+                val appear = ashSmooth((v - 0.2f) / 0.55f)
+                val settle = FastOutSlowInEasing.transform(((v - AshSettleFrom) / (1f - AshSettleFrom)).coerceIn(0f, 1f))
+                val s = AshScale + (1f - AshScale) * settle
                 scaleX = s
                 scaleY = s
-                alpha = e
+                translationX = widthPx * AshSideShift * (1f - settle)
+                alpha = if (settle > 0f) 1f else appear * 0.85f
             },
-        )
+        ) {
+            AsyncImage(
+                model = newUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (newVideo != null) PosterCanvasVideo(newVideo, Modifier.fillMaxSize())
+        }
     }
 }
 
