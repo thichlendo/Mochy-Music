@@ -4628,6 +4628,19 @@ class MusicService :
                 }
             }
 
+            // never cut the old song short: let it play out to its last millisecond (STATE_ENDED) first
+            if (naturalEnd && outDuration > 0) {
+                val out = fadingPlayer
+                while (isActive && out != null && out.playbackState != Player.STATE_ENDED &&
+                    out.currentPosition < outDuration - 30 && player.isPlaying) {
+                    try {
+                        val left = (outDuration - out.currentPosition).coerceAtLeast(0L)
+                        out.volume = if (left <= 0L) 0f else out.volume.coerceAtMost(startVolume * left / 1000f)
+                    } catch (e: Exception) { break }
+                    delay(CrossfadeFrameMs)
+                }
+            }
+
             try {
                 fadingPlayer?.volume = 0f
                 player.volume = targetVolume()

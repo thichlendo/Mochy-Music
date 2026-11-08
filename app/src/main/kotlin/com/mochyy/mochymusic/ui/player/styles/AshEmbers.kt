@@ -44,7 +44,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /** how small the covers get at the edge of the hand-over */
-private const val AshScale = 0.85f
+private const val AshScale = 0.7f
 private const val EmberCount = 70
 
 /**
@@ -94,9 +94,9 @@ internal class AshTransition {
 /** the embers: start and end of each one's drift across the cover, as fractions of the cover box */
 internal class Embers(val count: Int, seed: Int) {
     private val rnd = Random(seed)
-    private val sx = FloatArray(count) { 0.08f + rnd.nextFloat() * 0.3f }
+    private val sx = FloatArray(count) { 0.1f + rnd.nextFloat() * 0.2f }
     private val sy = FloatArray(count) { 0.05f + rnd.nextFloat() * 0.8f }
-    private val tx = FloatArray(count) { 0.62f + rnd.nextFloat() * 0.3f }
+    private val tx = FloatArray(count) { 0.7f + rnd.nextFloat() * 0.2f }
     private val ty = FloatArray(count) { 0.15f + rnd.nextFloat() * 0.65f }
     private val lag = FloatArray(count) { rnd.nextFloat() * 0.35f }
     private val life = FloatArray(count) { 0.45f + rnd.nextFloat() * 0.2f }
@@ -108,7 +108,7 @@ internal class Embers(val count: Int, seed: Int) {
     fun DrawScope.draw(p: Float) {
         val w = size.width
         val h = size.height
-        val reach = min(w, h) * 0.18f
+        val reach = min(w, h) * 0.12f
         val unit = 1.dp.toPx()
         for (i in 0 until count) {
             val t = (p - lag[i]) / life[i]
@@ -195,10 +195,10 @@ private fun ashSmooth(x: Float): Float {
 }
 
 /** how far (as a share of the cover's width) the two covers stand off to the left and right during the hand-over */
-private const val AshSideShift = 0.14f
+private const val AshSideShift = 0.3f
 
 /** the hand-over's last stretch: the new cover slides to the middle and grows back to full size */
-private const val AshSettleFrom = 0.75f
+private const val AshSettleFrom = 0.8f
 
 /**
  * The cover as the hand-over draws it: the old one shrunk to the left, turning to ash; the embers
@@ -220,10 +220,10 @@ internal fun AshCover(
         Box(
             Modifier.fillMaxSize().graphicsLayer {
                 val v = progress.value
-                val s = 1f - (1f - AshScale) * ashSmooth(v / 0.2f)
+                val s = 1f - (1f - AshScale) * ashSmooth(v / 0.25f)
                 scaleX = s
                 scaleY = s
-                translationX = -widthPx * AshSideShift * ashSmooth(v / 0.2f)
+                translationX = -widthPx * AshSideShift * ashSmooth(v / 0.25f)
                 alpha = 1f - ashSmooth((v - 0.1f) / 0.55f)
             },
         ) {
@@ -241,7 +241,7 @@ internal fun AshCover(
         Box(
             Modifier.fillMaxSize().graphicsLayer {
                 val v = progress.value
-                val appear = ashSmooth((v - 0.2f) / 0.55f)
+                val appear = ashSmooth((v - 0.25f) / 0.5f)
                 val settle = FastOutSlowInEasing.transform(((v - AshSettleFrom) / (1f - AshSettleFrom)).coerceIn(0f, 1f))
                 val s = AshScale + (1f - AshScale) * settle
                 scaleX = s
