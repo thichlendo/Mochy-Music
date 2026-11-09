@@ -977,6 +977,23 @@ private fun RidingTimes(
                     }
                 },
             )
+            // the mix tag, tucked in beside the total while a mix runs
+            val mixing = LocalPlayerConnection.current?.isCrossmixing?.collectAsState()?.value ?: false
+            com.mochyy.mochymusic.ui.player.MixBadge(
+                visible = mixing,
+                accent = tones.ink,
+                modifier = Modifier.layout { measurable, constraints ->
+                    val p = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                    layout(constraints.maxWidth, constraints.maxHeight) {
+                        val x = startPx + timeWidthPx + gapPx * 2
+                        if (!landscape) {
+                            p.place(x.toInt(), (linePx() + gapPx * 0.6f + (timeHeightPx - p.height) / 2f).toInt())
+                        } else {
+                            p.place((linePx() + gapPx * 1.6f).toInt(), (hPx - bottomPx - timeHeightPx - p.height - gapPx).toInt())
+                        }
+                    }
+                },
+            )
             content()
         }
     }

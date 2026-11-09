@@ -251,6 +251,12 @@ fun PlayerProgressSlider(
         )
     }
 
+    val mixing by playerConnection.isCrossmixing.collectAsState()
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+    MixBadge(visible = mixing)
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -288,6 +294,7 @@ fun PlayerProgressSlider(
                 .then(endTimeModifier)
                 .timeLift(expand, pivotX = 1f) { maxOf(stretch.floatValue, 0f) },
         )
+    }
     }
 }
 
