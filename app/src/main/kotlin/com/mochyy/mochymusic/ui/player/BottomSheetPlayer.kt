@@ -1152,6 +1152,26 @@ private fun PlayerSheet(
                     offsetProvider = layoutTweaks::controlsOffset,
                     glareProvider = ambient::glare,
                 )
+                // while two songs mix: the old and new covers side by side, then the new one settles to the middle
+                if (!landscapeFlagship && !studioEngaged) {
+                    val mixTrack = remember(trackInfo.mediaId, trackInfo.thumbnailUrl) {
+                        com.mochyy.mochymusic.ui.player.styles.StyleTrack(trackInfo.title, trackInfo.artist, trackInfo.album, trackInfo.thumbnailUrl)
+                    }
+                    val (mixSeconds) = rememberPreference(
+                        com.mochyy.mochymusic.constants.PosterTransitionSecondsKey,
+                        defaultValue = com.mochyy.mochymusic.constants.PosterTransitionDefaultSeconds,
+                    )
+                    val mixEdge = shownCoverStyle == PlayerCoverStyle.EDGE_TO_EDGE
+                    com.mochyy.mochymusic.ui.player.flagship.FlagshipCrossmixCover(
+                        mixing = playerConnection.isCrossmixing.collectAsState().value,
+                        track = mixTrack,
+                        newCanvasUrl = com.mochyy.mochymusic.ui.player.styles.rememberPosterCanvasUrl(mixTrack, enabled = true),
+                        durationMs = mixSeconds.coerceIn(1, 10) * 1000,
+                        artSize = if (mixEdge) screenWidth else screenWidth - 48.dp,
+                        artTop = if (mixEdge) 0.dp else statusBarTopInset + 64.dp,
+                        modifier = Modifier.graphicsLayer { alpha = (1f - lyricsProgress).coerceIn(0f, 1f) },
+                    )
+                }
             } else if (!isTurntable) SeamBlur(
                 glassState = morphingGlassState,
                 progressProvider = progressProvider,
