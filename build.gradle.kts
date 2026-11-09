@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.ksp) apply (false)
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.protobufPlugin) apply false
+    id("io.github.takahirom.roborazzi") version "1.40.0" apply false
 }
 
 buildscript {

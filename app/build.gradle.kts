@@ -16,12 +16,17 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.protobufPlugin)
+    id("io.github.takahirom.roborazzi")
 }
 
 extensions.configure<ApplicationExtension> {
     namespace = "com.mochyy.mochymusic"
     compileSdk = 36
     ndkVersion = "27.0.12077973"
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 
     defaultConfig {
         applicationId = "com.mochyy.mochymusic"
@@ -470,4 +475,12 @@ dependencies {
     implementation(libs.androidx.webkit)
 
     testImplementation(libs.junit)
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.40.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.40.0")
+    testImplementation("org.robolectric:robolectric:4.14")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+}
+
+roborazzi {
+    outputDir.set(layout.buildDirectory.dir("outputs/roborazzi"))
 }
