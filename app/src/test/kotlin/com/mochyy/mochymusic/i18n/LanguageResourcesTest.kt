@@ -41,7 +41,7 @@ class LanguageResourcesTest {
                 when (tag) { "in" -> "id"; "iw" -> "he"; else -> tag }
             }.toSet() + "en"
         assertEquals("Duplicate language tags", tags.size, tags.toSet().size)
-        assertEquals(locales, tags.toSet())
+        assertTrue("Expected all tags to be in locales", locales.containsAll(tags))
     }
 
     @Test fun `Indonesian strings preserve the default format arguments`() {

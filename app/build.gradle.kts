@@ -479,6 +479,7 @@ dependencies {
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.40.0")
     testImplementation("org.robolectric:robolectric:4.14")
     testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
 
 roborazzi {

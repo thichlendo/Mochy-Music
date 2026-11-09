@@ -1,5 +1,6 @@
 package com.mochyy.mochymusic.ui.player.flagship
 
+import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +26,7 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
+@Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi", application = Application::class)
 class FlagshipScreenshotTest {
     @get:Rule
     val rule = createComposeRule()
