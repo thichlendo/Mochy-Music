@@ -693,10 +693,11 @@ private fun CircleCover(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(shape)
-                .background(Color.White.copy(alpha = 0.06f))
+                // through a hand-over the covers show whole, so the oval doesn't crop them
+                .then(if (ash != null && ash.showing) Modifier else Modifier.clip(shape).background(Color.White.copy(alpha = 0.06f)))
                 .drawWithContent {
                     drawContent()
+                    if (ash != null && ash.showing) return@drawWithContent
                     drawCircle(
                         brush = Brush.radialGradient(
                             0.82f to Color.Transparent,
@@ -711,7 +712,7 @@ private fun CircleCover(
         ) {
             // the songs' covers slide past under the circle, the next one coming in as this one goes
             if (ash != null && ash.showing) {
-                AshCover(ash, url, Modifier.fillMaxSize(), newVideo = canvasUrl)
+                AshCover(ash, url, Modifier.fillMaxSize(), newVideo = canvasUrl, center = c, radius = r)
             } else com.mochyy.mochymusic.ui.player.CarouselPictures(
                 carousel = carousel,
                 fallbackUrl = url,

@@ -16,6 +16,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -44,7 +46,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /** how small the covers get at the edge of the hand-over */
-private const val AshScale = 0.7f
+private const val AshScale = 0.55f
 private const val EmberCount = 70
 
 /**
@@ -94,9 +96,9 @@ internal class AshTransition {
 /** the embers: start and end of each one's drift across the cover, as fractions of the cover box */
 internal class Embers(val count: Int, seed: Int) {
     private val rnd = Random(seed)
-    private val sx = FloatArray(count) { 0.1f + rnd.nextFloat() * 0.2f }
+    private val sx = FloatArray(count) { 0.22f + rnd.nextFloat() * 0.1f }
     private val sy = FloatArray(count) { 0.05f + rnd.nextFloat() * 0.8f }
-    private val tx = FloatArray(count) { 0.7f + rnd.nextFloat() * 0.2f }
+    private val tx = FloatArray(count) { 0.68f + rnd.nextFloat() * 0.12f }
     private val ty = FloatArray(count) { 0.15f + rnd.nextFloat() * 0.65f }
     private val lag = FloatArray(count) { rnd.nextFloat() * 0.35f }
     private val life = FloatArray(count) { 0.45f + rnd.nextFloat() * 0.2f }
@@ -195,7 +197,7 @@ private fun ashSmooth(x: Float): Float {
 }
 
 /** how far (as a share of the cover's width) the two covers stand off to the left and right during the hand-over */
-private const val AshSideShift = 0.3f
+private const val AshSideShift = 0.24f
 
 /** the hand-over's last stretch: the new cover slides to the middle and grows back to full size */
 private const val AshSettleFrom = 0.8f
@@ -213,50 +215,83 @@ internal fun AshCover(
     modifier: Modifier = Modifier,
     newVideo: String? = null,
     oldVideo: String? = ash.heldTrack?.let { PosterCanvasCache.peek(it) },
+    /** the oval's centre and radius in this box's pixels: the covers are whole squares of this size, not cropped to it */
+    center: androidx.compose.ui.geometry.Offset? = null,
+    radius: Float = 0f,
 ) {
     val progress = ash.progress
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val cornerPx = with(density) { 12.dp.toPx() }
     BoxWithConstraints(modifier) {
-        val widthPx = with(androidx.compose.ui.platform.LocalDensity.current) { maxWidth.toPx() }
+        val widthPx = with(density) { maxWidth.toPx() }
+        val heightPx = with(density) { maxHeight.toPx() }
+        val c = center ?: androidx.compose.ui.geometry.Offset(widthPx / 2f, heightPx / 2f)
+        val r = if (radius > 0f) radius else min(widthPx, heightPx) / 2f
+        val origin = androidx.compose.ui.graphics.TransformOrigin(c.x / widthPx, c.y / heightPx)
+        val squareDp = with(density) { (2f * r).toDp() }
+        val squareOffset = androidx.compose.ui.unit.IntOffset((c.x - r).toInt(), (c.y - r).toInt())
+        // the old cover: whole and square, shrunk to the left, gone by the time the new one settles
         Box(
             Modifier.fillMaxSize().graphicsLayer {
                 val v = progress.value
                 val s = 1f - (1f - AshScale) * ashSmooth(v / 0.25f)
+                transformOrigin = origin
                 scaleX = s
                 scaleY = s
                 translationX = -widthPx * AshSideShift * ashSmooth(v / 0.25f)
-                alpha = 1f - ashSmooth((v - 0.1f) / 0.55f)
+                alpha = 1f - ashSmooth(v / AshSettleFrom)
             },
         ) {
-            AsyncImage(
-                model = ash.heldUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            if (oldVideo != null) PosterCanvasVideo(oldVideo, Modifier.fillMaxSize())
+            Box(
+                Modifier
+                    .offset { squareOffset }
+                    .size(squareDp)
+                    .graphicsLayer { shape = androidx.compose.foundation.shape.RoundedCornerShape(cornerPx); clip = true },
+            ) {
+                AsyncImage(
+                    model = ash.heldUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (oldVideo != null) PosterCanvasVideo(oldVideo, Modifier.fillMaxSize())
+            }
         }
         Canvas(Modifier.fillMaxSize()) {
             with(ash.embers) { draw(progress.value) }
         }
+        // the new cover: faint on the right, then slides to the middle and grows, its corners rounding out to the oval
         Box(
             Modifier.fillMaxSize().graphicsLayer {
                 val v = progress.value
-                val appear = ashSmooth((v - 0.25f) / 0.5f)
                 val settle = FastOutSlowInEasing.transform(((v - AshSettleFrom) / (1f - AshSettleFrom)).coerceIn(0f, 1f))
                 val s = AshScale + (1f - AshScale) * settle
+                transformOrigin = origin
                 scaleX = s
                 scaleY = s
                 translationX = widthPx * AshSideShift * (1f - settle)
-                alpha = if (settle > 0f) 1f else appear * 0.85f
+                alpha = 0.3f + 0.7f * ashSmooth(v)
             },
         ) {
-            AsyncImage(
-                model = newUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            if (newVideo != null) PosterCanvasVideo(newVideo, Modifier.fillMaxSize())
+            Box(
+                Modifier
+                    .offset { squareOffset }
+                    .size(squareDp)
+                    .graphicsLayer {
+                        val v = progress.value
+                        val settle = ((v - AshSettleFrom) / (1f - AshSettleFrom)).coerceIn(0f, 1f)
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(cornerPx + (r - cornerPx) * settle)
+                        clip = true
+                    },
+            ) {
+                AsyncImage(
+                    model = newUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (newVideo != null) PosterCanvasVideo(newVideo, Modifier.fillMaxSize())
+            }
         }
     }
 }
