@@ -563,6 +563,10 @@ class MusicService :
     val transport by lazy { TransportTransitions({ scope }, TransportHost()) }
     /** Crossmix is playing two songs together right now, for the player's "Mixing…" note */
     val crossmixMixing = MutableStateFlow(false)
+    /** the real transitionMs of the mix in progress (the length its volume ramps run), for the player's cover animation */
+    val crossmixDurationMs = MutableStateFlow(0L)
+    /** how far the mix's volume ramp has really got, 0 -> 1, written by the same loop that sets the volumes */
+    val crossmixProgress = MutableStateFlow(0f)
     /** what Crossmix last decided, in a line, for its test tools in Experimental */
     val crossmixStatus = MutableStateFlow("")
 
@@ -4554,6 +4558,8 @@ class MusicService :
     private fun performCrossfadeSwap(durationMs: Long, naturalEnd: Boolean = false) {
         isCrossfading = true
         val nextPlayer = secondaryPlayer ?: return
+        crossmixDurationMs.value = durationMs
+        crossmixProgress.value = 0f
         crossmixMixing.value = true
         val currentPlayer = player
 
@@ -4627,6 +4633,8 @@ class MusicService :
                     // steady linear ramps over transitionMs: B 0 -> 1, A 1 -> 0
                     player.volume = targetVolume() * progress
                     fadingPlayer?.volume = startVolume * (1f - progress)
+                    // the cover animation reads this very value, so it can never drift from what's heard
+                    crossmixProgress.value = progress
                     if (djFilterEnabled) {
                         fadingPlayer?.let { playerDjFilters[it] }?.setSweep(com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor.Mode.LOW_PASS, progress)
                         playerDjFilters[player]?.setSweep(com.mochyy.mochymusic.playback.audio.DjFilterAudioProcessor.Mode.HIGH_PASS, progress)
@@ -4668,6 +4676,7 @@ class MusicService :
         fadingLoudnessEnhancer?.runCatching { release() }
         fadingLoudnessEnhancer = null
         isCrossfading = false
+        crossmixProgress.value = 1f
         crossmixMixing.value = false
         sleepTimer.notifySongTransition()
         prefetchNeighbours()
@@ -5116,7 +5125,13 @@ class MusicService :
         override fun baseParameters(): PlaybackParameters = player.playbackParameters
 
         override fun onMixingChanged(mixing: Boolean) {
+            if (mixing) crossmixProgress.value = 0f
             crossmixMixing.value = mixing
+        }
+
+        override fun onMixProgress(progress: Float, durationMs: Long) {
+            crossmixDurationMs.value = durationMs
+            crossmixProgress.value = progress
         }
     }
 

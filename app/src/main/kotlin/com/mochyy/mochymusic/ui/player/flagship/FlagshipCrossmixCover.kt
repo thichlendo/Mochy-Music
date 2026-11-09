@@ -1,9 +1,6 @@
 package com.mochyy.mochymusic.ui.player.flagship
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,7 +9,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +39,10 @@ private const val SettleFrom = 0.8f
  * and grows to 1.0 where the ordinary cover takes over again. Animated artwork plays over the
  * still when a song has it; otherwise the still stays. Draws nothing when no mix is running.
  *
+ * Nothing here runs a clock of its own: every frame reads [progressProvider], the very value the
+ * service's volume ramp (transitionMs, 0 -> 1) is driving, so the covers and the audio fade stay
+ * in step to the millisecond and the animation ends the moment the hand-over does.
+ *
  * [artSize] is the side of the full-size cover square and [artTop] where its top edge sits.
  */
 @Composable
@@ -50,7 +50,7 @@ internal fun FlagshipCrossmixCover(
     mixing: Boolean,
     track: StyleTrack,
     newCanvasUrl: String?,
-    durationMs: Int,
+    progressProvider: () -> Float,
     artSize: androidx.compose.ui.unit.Dp,
     artTop: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
@@ -58,20 +58,11 @@ internal fun FlagshipCrossmixCover(
     // the cover of the song that was playing before the mix started
     var stable by remember { mutableStateOf(track) }
     var old by remember { mutableStateOf<StyleTrack?>(null) }
-    val progress = remember { Animatable(0f) }
-    var running by remember { mutableStateOf(false) }
 
-    if (!mixing && !running) stable = track
-
-    LaunchedEffect(mixing) {
-        if (!mixing) { running = false; return@LaunchedEffect }
-        old = stable
-        progress.snapTo(0f)
-        running = true
-        progress.animateTo(1f, tween(durationMs.coerceAtLeast(500), easing = LinearEasing))
-    }
+    // the song playing before the mix is remembered until the mix starts; during it the player already reports the new one
+    if (!mixing) { stable = track; old = null } else if (old == null) old = stable
     val shownOld = old
-    if (!running || shownOld == null) return
+    if (!mixing || shownOld == null) return
 
     val density = LocalDensity.current
     val corner = 12.dp
@@ -86,7 +77,7 @@ internal fun FlagshipCrossmixCover(
             Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    val v = progress.value
+                    val v = progressProvider()
                     alpha = min(1f, v / 0.05f) * (1f - ((v - 0.97f) / 0.03f).coerceIn(0f, 1f))
                 }
                 .background(Color.Black.copy(alpha = 0.55f)),
@@ -97,9 +88,9 @@ internal fun FlagshipCrossmixCover(
             track = shownOld,
             canvasUrl = PosterCanvasCache.peek(shownOld),
             sidePx = sidePx, centreX = centreX, centreY = centreY, cornerDp = corner,
-            scale = { 1f - (1f - SideScale) * smooth(progress.value / 0.2f) },
-            shiftX = { -sideOffset * smooth(progress.value / 0.2f) },
-            alpha = { 1f - smooth((progress.value - SettleFrom) / (1f - SettleFrom)) },
+            scale = { 1f - (1f - SideScale) * smooth(progressProvider() / 0.2f) },
+            shiftX = { -sideOffset * smooth(progressProvider() / 0.2f) },
+            alpha = { 1f - smooth((progressProvider() - SettleFrom) / (1f - SettleFrom)) },
         )
         // the new cover: on the right, then slides to the middle growing to 1.0
         MixCard(
@@ -107,14 +98,14 @@ internal fun FlagshipCrossmixCover(
             canvasUrl = newCanvasUrl,
             sidePx = sidePx, centreX = centreX, centreY = centreY, cornerDp = corner,
             scale = {
-                val settle = FastOutSlowInEasing.transform(((progress.value - SettleFrom) / (1f - SettleFrom)).coerceIn(0f, 1f))
-                val enter = smooth(progress.value / 0.2f)
+                val settle = FastOutSlowInEasing.transform(((progressProvider() - SettleFrom) / (1f - SettleFrom)).coerceIn(0f, 1f))
+                val enter = smooth(progressProvider() / 0.2f)
                 val sideScale = 1f - (1f - SideScale) * enter
                 sideScale + (1f - sideScale) * settle
             },
             shiftX = {
-                val settle = FastOutSlowInEasing.transform(((progress.value - SettleFrom) / (1f - SettleFrom)).coerceIn(0f, 1f))
-                sideOffset * smooth(progress.value / 0.2f) * (1f - settle)
+                val settle = FastOutSlowInEasing.transform(((progressProvider() - SettleFrom) / (1f - SettleFrom)).coerceIn(0f, 1f))
+                sideOffset * smooth(progressProvider() / 0.2f) * (1f - settle)
             },
             alpha = { 1f },
         )

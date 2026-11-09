@@ -1157,16 +1157,14 @@ private fun PlayerSheet(
                     val mixTrack = remember(trackInfo.mediaId, trackInfo.thumbnailUrl) {
                         com.mochyy.mochymusic.ui.player.styles.StyleTrack(trackInfo.title, trackInfo.artist, trackInfo.album, trackInfo.thumbnailUrl)
                     }
-                    val (mixSeconds) = rememberPreference(
-                        com.mochyy.mochymusic.constants.PosterTransitionSecondsKey,
-                        defaultValue = com.mochyy.mochymusic.constants.PosterTransitionDefaultSeconds,
-                    )
+                    // the mix's real progress (transitionMs, 0 -> 1) straight from the service's volume ramp; read only while drawing
+                    val mixProgress = playerConnection.crossmixProgress.collectAsState()
                     val mixEdge = shownCoverStyle == PlayerCoverStyle.EDGE_TO_EDGE
                     com.mochyy.mochymusic.ui.player.flagship.FlagshipCrossmixCover(
                         mixing = playerConnection.isCrossmixing.collectAsState().value,
                         track = mixTrack,
                         newCanvasUrl = com.mochyy.mochymusic.ui.player.styles.rememberPosterCanvasUrl(mixTrack, enabled = true),
-                        durationMs = mixSeconds.coerceIn(1, 10) * 1000,
+                        progressProvider = { mixProgress.value },
                         artSize = if (mixEdge) screenWidth else screenWidth - 48.dp,
                         artTop = if (mixEdge) 0.dp else statusBarTopInset + 64.dp,
                         modifier = Modifier.graphicsLayer { alpha = (1f - lyricsProgress).coerceIn(0f, 1f) },

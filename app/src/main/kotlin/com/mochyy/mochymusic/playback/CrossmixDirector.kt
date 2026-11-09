@@ -65,6 +65,8 @@ class CrossmixDirector(
         fun baseParameters(): PlaybackParameters
         /** two songs are playing together (true) or the outgoing one has gone (false) */
         fun onMixingChanged(mixing: Boolean)
+        /** how far the mix has really got (0 -> 1) over [durationMs], read from the outgoing song's own clock */
+        fun onMixProgress(progress: Float, durationMs: Long) {}
         /** what Crossmix is doing now, in a line, for the settings screen */
         fun onStatus(status: String)
         /** the album of the song at [index], for telling continuous albums apart */
@@ -436,6 +438,7 @@ class CrossmixDirector(
 
         session.jobs += scope.launch { lockBeat(session) }
         session.jobs += scope.launch { releaseOutgoingWhenDone(session) }
+        session.jobs += scope.launch { reportProgress(session) }
     }
 
     private fun giveUp(incoming: ExoPlayer) {
@@ -524,6 +527,18 @@ class CrossmixDirector(
         }
         session.tempoSettled = true
         finishSession(session)
+    }
+
+    /** tells the host how far the overlap really is, frame by frame, so the player's cover moves with what is heard */
+    private suspend fun reportProgress(session: Running) {
+        val plan = session.plan
+        val lengthMs = (plan.lengthBeats * plan.outBeatMs).toLong().coerceAtLeast(1L)
+        while (scope.isActive && running === session && !session.released) {
+            val progress = ((session.outgoing.currentPosition - plan.outStartMs).toFloat() / lengthMs).coerceIn(0f, 1f)
+            host.onMixProgress(progress, lengthMs)
+            delay(16)
+        }
+        if (running === session) host.onMixProgress(1f, lengthMs)
     }
 
     private suspend fun releaseOutgoingWhenDone(session: Running) {

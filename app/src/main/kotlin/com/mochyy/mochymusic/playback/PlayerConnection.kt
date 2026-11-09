@@ -296,6 +296,10 @@ class PlayerConnection(
     /** Crossmix has the next song playing over the end of this one */
     val isCrossmixing = service.crossmixMixing
 
+    /** the real length (transitionMs) of the mix running now, and how far its volume ramp has got (0 -> 1) */
+    val crossmixDurationMs = service.crossmixDurationMs
+    val crossmixProgress = service.crossmixProgress
+
     /** asks the player to open, then open its studio (the selector); from "Customize player" in settings */
     val studioRequests = kotlinx.coroutines.flow.MutableStateFlow(0L)
 
