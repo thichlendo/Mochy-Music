@@ -4553,8 +4553,8 @@ class MusicService :
 
     private fun performCrossfadeSwap(durationMs: Long, naturalEnd: Boolean = false) {
         isCrossfading = true
-        crossmixMixing.value = true
         val nextPlayer = secondaryPlayer ?: return
+        crossmixMixing.value = true
         val currentPlayer = player
 
         fadingPlayer = currentPlayer
